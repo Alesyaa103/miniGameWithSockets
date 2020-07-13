@@ -1,0 +1,92 @@
+#rooms-page,
+#game-page {
+  padding: 50px 10%;
+}
+
+#button-create,
+#button-back,
+#ready,
+#not-ready,
+.room-item-button {
+  border: 1px solid var(--input-border-color);
+  margin: 20px 0;
+  width: 160px;
+  background-color: var(--button-bg-color);
+}
+
+#room-list {
+  display: flex;
+}
+
+.room-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--input-border-color);
+  width: 180px;
+  margin: 20px;
+}
+
+#game-aside {
+  width: 40%;
+}
+
+#container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+  background-color: white;
+}
+
+#game-section {
+  width: 60%;
+  display: flex;
+  z-index: 0;
+  justify-content: center;
+  align-items: center;
+  margin-left: 20px;
+  position: relative;
+  border: 1px solid var(--input-border-color);;
+}
+.user-indicator {
+  width: 10px;
+  height: 10px;
+  display: block;
+  border-radius: 50%;
+}
+
+.entered-container {
+  background-color: red;
+}
+.user-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 20px 20px 0 0;
+}
+
+.user-name {
+  margin: 0 20px;
+}
+#progress {
+  width: 100%;
+}
+
+.not-ready {
+  background-color: red;
+}
+
+.ready {
+  background-color: green;
+}
+:root {
+  --button-bg-color: #b8b7d5;
+  --input-border-color: #999;
+}
