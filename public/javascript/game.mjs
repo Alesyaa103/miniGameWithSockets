@@ -67,7 +67,7 @@ const gameProcess = (textContainer, enteredContainer, startId, e) => {
     textContainer.innerText = textToEnter.join('');
     const enteredLength = enteredText.length;
     const textToEnterLength = textToEnter.length;
-    const progress = Math.floor(enteredLength / (enteredLength + textToEnterLength) * 1000);
+    const progress = Math.floor(enteredLength / (enteredLength + textToEnterLength) * 100);
     socket.emit('CORRECT_INPUT', progress);
     if (textToEnterLength === 0) {
       const isDraw = false;
