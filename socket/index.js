@@ -107,17 +107,6 @@ export default io => {
         client.emit('UPDATE_USER_INDICATOR', socket.id);
       }
       checkStartGame(room)
-      // const isAllUsersReady = room.sockets.every((user) => user['ready'] === true);
-      // if (room.sockets.length === MAXIMUM_USERS_FOR_ONE_ROOM || (isAllUsersReady && room.sockets.length > 1)) {
-      //   const num = Math.floor(Math.random() * 7);
-      //   for (const client of room.sockets) {
-      //     client.emit('START_GAME', {
-      //       start: SECONDS_TIMER_BEFORE_START_GAME,
-      //       finish: SECONDS_FOR_GAME,
-      //       textId: num
-      //     });
-      //   }
-      // }
     });
 
     socket.on('USER_NOT_READY', () => {
