@@ -1,6 +1,6 @@
 import { joinRoom } from './roomHelper.mjs';
 
-export const createElement = ({tagName, className, text, attributes = {}}) => {
+export const createElement = ({tagName, className, text, attributes = {}, parentNode}) => {
   const element = document.createElement(tagName);
 
   if (className) {
@@ -12,39 +12,45 @@ export const createElement = ({tagName, className, text, attributes = {}}) => {
   }
 
   Object.keys(attributes).forEach((key) => element.setAttribute(key, attributes[key]));
-
+  if (parentNode) {
+  parentNode.append(element);
+  }
   return element;
 }
 
 export const createRoomElement = (room, root, socket) => {
-  
   const {name, count, id, available} = room;
     if (available) {
       const roomElement = createElement({
         tagName: 'div',
         className: 'room-item',
-        attributes: {'id': id}
+        attributes: {'id': id},
+        parentNode: root
       })
-      let countUsers = count === 1 ? '1 user' : `${count} users`;
-      const usersConnected = createElement({
+      const countUsers = count === 1 ? '1 user' : `${count} users`;
+      createElement({
         tagName: 'span',
         className:'room-item-connected',
-        text: `${countUsers} connected`
+        text: `${countUsers} connected`,
+        parentNode: roomElement
       })
-      const roomTitle = createElement({
+      createElement({
         tagName: 'h3',
         className:'room-item-name',
-        text: name
+        text: name,
+        parentNode: roomElement
       });
       const roomButoon = createElement({
         tagName: 'button',
         className:'room-item-button',
-        text: 'Join'
+        text: 'Join',
+        parentNode: roomElement
       })
-      roomElement.append(usersConnected);
-      roomElement.append(roomTitle);
-      roomElement.append(roomButoon);
-      root.append(roomElement);
       roomButoon.addEventListener('click', joinRoom.bind(null, socket, id))
     }
   }
+
+export const switchVisibility = ({elementToShow, elementToHide}) => {
+  elementToHide.classList.add('display-none');
+  elementToShow.classList.remove('display-none');
+}

@@ -1,18 +1,8 @@
-import {
-  createRoom,
-  displayUsers
-} from './helpers/roomHelper.mjs';
-import {
-  createElement,
-  createRoomElement
-} from './helpers/domHelper.mjs';
+import { createRoom, displayUsers } from './helpers/roomHelper.mjs';
+import { createElement, createRoomElement, switchVisibility } from './helpers/domHelper.mjs';
 
 const username = sessionStorage.getItem('username');
-const socket = io('', {
-  query: {
-    username
-  }
-});
+const socket = io('', { query: { username } });
 const roomsElement = document.getElementById('room-list');
 const readyBtn = document.getElementById('ready');
 const notReadyBtn = document.getElementById('not-ready');
@@ -25,41 +15,39 @@ const gameSection = document.getElementById('game-section');
 createBtn.addEventListener('click', createRoom.bind(null, socket));
 
 readyBtn.addEventListener('click', () => {
-  readyBtn.classList.add('display-none');
-  notReadyBtn.classList.remove('display-none');
+  switchVisibility({elementToShow: notReadyBtn, elementToHide: readyBtn});
   socket.emit('USER_READY');
 });
 
 notReadyBtn.addEventListener('click', () => {
-  notReadyBtn.classList.add('display-none');
-  readyBtn.classList.remove('display-none');
+  switchVisibility({elementToShow: readyBtn, elementToHide: notReadyBtn});
   socket.emit('USER_NOT_READY');
 });
 
 leaveBtn.addEventListener('click', () => {
-  roomsPage.classList.remove('display-none');
-  gamePage.classList.add('display-none');
+  clearGameField();
+  switchVisibility({elementToShow: roomsPage, elementToHide: gamePage});
   socket.emit('LEAVE_ROOM');
   document.getElementById('game-title').remove()
   document.getElementById('user-container').remove()
-})
+});
+
+const clearGameField = () => {
+  document.querySelector('#container').remove();
+}
 
 const finishGame = (startId, isDraw) => {
   clearTimeout(startId);
-  document.querySelector('.text-container').remove();
-  document.querySelector('.entered-container').remove();
-  document.querySelector('.timer').remove();
   if (isDraw) {
     socket.emit("FINISH_GAME");
-
   } else {
     socket.emit('GET_WINNER')
   }
 }
 
 const gameProcess = (textContainer, enteredContainer, startId, e) => {
-  let textToEnter = textContainer.textContent.split('');
-  let enteredText = enteredContainer.textContent.split('');
+  const textToEnter = textContainer.textContent.split('');
+  const enteredText = enteredContainer.textContent.split('');
   if (e.key === textToEnter[0]) {
     const symbol = textToEnter.shift();
     enteredText.push(symbol);
@@ -84,14 +72,9 @@ socket.on('ROOM_GOT', (rooms) => {
   rooms.forEach(room => createRoomElement(room, roomsElement, socket));
 });
 
-socket.on('JOINED_ROOM', (data) => {
-  const {
-    name,
-    users
-  } = data;
+socket.on('JOINED_ROOM', ({name}) => {
   const gameAside = document.getElementById('game-aside');
-  roomsPage.classList.add('display-none');
-  gamePage.classList.remove('display-none');
+  switchVisibility({elementToShow: gamePage, elementToHide: roomsPage});
   const nameElement = createElement({
     tagName: 'h2',
     text: name,
@@ -100,7 +83,6 @@ socket.on('JOINED_ROOM', (data) => {
     }
   });
   gameAside.prepend(nameElement);
-  displayUsers(users)
 });
 
 socket.on('ERROR_USER', (message) => {
@@ -112,22 +94,21 @@ socket.on('ERROR_USER', (message) => {
 socket.on('ERROR_ROOM', (message) => alert(message));
 
 
-socket.on('NEW_CONNECT', users => {
+socket.on('NEW_CONNECT', ({users, activePlayer}) => {
   const userContainer = document.getElementById('user-container');
-  userContainer.parentNode.removeChild(userContainer);
-  displayUsers(users)
+  userContainer && userContainer.parentNode.removeChild(userContainer);
+  displayUsers(users, activePlayer);
 });
 
 socket.on('USER_LEFT', () => {
   const userContainer = document.getElementById('user-container');
   userContainer.parentNode.removeChild(userContainer);
-})
+});
+
 socket.emit('GET_ROOMS');
 
 socket.on('UPDATE_ROOMS', (room) => {
-  const {
-    id
-  } = room;
+  const { id } = room;
   const existedRoom = document.getElementById(id);
   if (existedRoom) {
     existedRoom.parentNode.removeChild(existedRoom);
@@ -148,50 +129,46 @@ socket.on('CANCEL_USER_INDICATOR', id => {
   userIndicator.classList.add('not-ready')
 })
 
-socket.on('START_GAME', ({
-  start,
-  finish,
-  textId
-}) => {
+socket.on('START_GAME', ({ start, finish, textId }) => {
   const container = createElement({
     tagName: 'div',
     attributes: {
       'id': 'container'
-    }
+    },
+    parentNode: gameSection
   });
-  gameSection.append(container);
   const timer = createElement({
     tagName: 'div',
-    className: 'timer'
+    className: 'timer',
+    parentNode: container
   });
-  container.append(timer);
+
   const enteredContainer = createElement({
     tagName: 'pre',
-    className: 'entered-container'
+    className: 'entered-container',
+    parentNode: container
   });
   const textContainer = createElement({
     tagName: 'pre',
-    className: 'display-none text-container'
+    className: 'display-none text-container',
+    parentNode: container
   });
-  container.append(enteredContainer);
-  container.append(textContainer);
+
   fetch(`http://localhost:3002/game/texts/${textId}`, {
       headers: {
         'Content-Type': 'application/json'
       }
     })
     .then(res => res.json())
-    .then(({
-      text
-    }) => textContainer.innerText = text)
+    .then(({ text }) => textContainer.innerText = text)
     .catch(error => window.location.reload());
+
   let i = start;
   const decrease = () => i--;
 
   const startGame = () => {
     clearInterval(timerId);
-    timer.classList.add('display-none');
-    textContainer.classList.remove('display-none');
+    switchVisibility({elementToShow: textContainer, elementToHide: timer});
     document.addEventListener('keyup', gameProcess.bind(null, textContainer, enteredContainer, startId));
     const isDraw = true;
     setTimeout(finishGame.bind(null, startId, isDraw), finish * 1000);
@@ -204,10 +181,7 @@ socket.on('START_GAME', ({
   const startId = setTimeout(startGame, start * 1000);
 })
 
-socket.on('UPDATE_PROGRESS', ({
-  value,
-  id
-}) => {
+socket.on('UPDATE_PROGRESS', ({ value, id }) => {
   const progressBar = document.querySelector(`#${id} #progress`);
   progressBar.value = value;
 });
