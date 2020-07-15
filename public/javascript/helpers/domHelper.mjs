@@ -54,3 +54,20 @@ export const switchVisibility = ({elementToShow, elementToHide}) => {
   elementToHide.classList.add('display-none');
   elementToShow.classList.remove('display-none');
 }
+
+export const createModal = (bodyElement) => {
+  const layer = createElement({ tagName: 'div', className: 'modal-layer', parentNode: root });
+  const modalContainer = createElement({ tagName: 'div', className: 'modal-root', parentNode: layer });
+  const headerElement = createElement({ tagName: 'div', className: 'modal-header', parentNode: modalContainer });
+  createElement({ tagName: 'span', text: 'Rusults of the game', parentNode: headerElement });
+  const closeButton = createElement({ tagName: 'div', className: 'close-btn', text: '×', parentNode: headerElement });
+  
+  const close = () => {
+    const modal = document.querySelector('.modal-layer');
+    console.log(modal)
+    modal?.remove();    
+  };
+
+  closeButton.addEventListener('click', close);
+  modalContainer.append(bodyElement);
+}

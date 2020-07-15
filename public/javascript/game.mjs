@@ -1,5 +1,5 @@
-import { createRoom, displayUsers } from './helpers/roomHelper.mjs';
-import { createElement, createRoomElement, switchVisibility } from './helpers/domHelper.mjs';
+import { createRoom, displayUsers, createRating } from './helpers/roomHelper.mjs';
+import { createElement, createRoomElement, switchVisibility, createModal } from './helpers/domHelper.mjs';
 
 const username = sessionStorage.getItem('username');
 const socket = io('', { query: { username } });
@@ -11,7 +11,6 @@ const createBtn = document.getElementById('button-create');
 const roomsPage = document.getElementById('rooms-page');
 const gamePage = document.getElementById('game-page');
 const gameSection = document.getElementById('game-section');
-
 createBtn.addEventListener('click', createRoom.bind(null, socket));
 
 readyBtn.addEventListener('click', () => {
@@ -33,19 +32,17 @@ leaveBtn.addEventListener('click', () => {
 });
 
 const clearGameField = () => {
-  document.querySelector('#container').remove();
+  const container = document.querySelector('#container');
+  container && container.remove();
+  switchVisibility({elementToShow: readyBtn, elementToHide: notReadyBtn});
 }
 
-const finishGame = (startId, isDraw) => {
+const finishGame = (startId) => {
   clearTimeout(startId);
-  if (isDraw) {
-    socket.emit("FINISH_GAME");
-  } else {
-    socket.emit('GET_WINNER')
-  }
-}
+  socket.emit('FINISH_GAME');
+};
 
-const gameProcess = (textContainer, enteredContainer, startId, e) => {
+const gameProcess = (textContainer, enteredContainer, currentTime, e) => {
   const textToEnter = textContainer.textContent.split('');
   const enteredText = enteredContainer.textContent.split('');
   if (e.key === textToEnter[0]) {
@@ -58,8 +55,8 @@ const gameProcess = (textContainer, enteredContainer, startId, e) => {
     const progress = Math.floor(enteredLength / (enteredLength + textToEnterLength) * 100);
     socket.emit('CORRECT_INPUT', progress);
     if (textToEnterLength === 0) {
-      const isDraw = false;
-      finishGame(startId, isDraw)
+      const finishTime = Date.now() - currentTime;
+      socket.emit('WHOLE_TEXT_ENTERED', finishTime);
     }
   };
 }
@@ -72,7 +69,7 @@ socket.on('ROOM_GOT', (rooms) => {
   rooms.forEach(room => createRoomElement(room, roomsElement, socket));
 });
 
-socket.on('JOINED_ROOM', ({name}) => {
+socket.on('JOINED_ROOM', (name) => {
   const gameAside = document.getElementById('game-aside');
   switchVisibility({elementToShow: gamePage, elementToHide: roomsPage});
   const nameElement = createElement({
@@ -168,10 +165,10 @@ socket.on('START_GAME', ({ start, finish, textId }) => {
 
   const startGame = () => {
     clearInterval(timerId);
+    const currentTime = Date.now();
     switchVisibility({elementToShow: textContainer, elementToHide: timer});
-    document.addEventListener('keyup', gameProcess.bind(null, textContainer, enteredContainer, startId));
-    const isDraw = true;
-    setTimeout(finishGame.bind(null, startId, isDraw), finish * 1000);
+    document.addEventListener('keyup', gameProcess.bind(null, textContainer, enteredContainer, currentTime));
+    setTimeout(finishGame.bind(null, startId), finish * 1000);
   }
 
   const timerId = setInterval(() => {
@@ -186,11 +183,7 @@ socket.on('UPDATE_PROGRESS', ({ value, id }) => {
   progressBar.value = value;
 });
 
-socket.on('GET_RESULTS', (winner) => {
-  const container = document.getElementById('container');
-  if (winner) {
-    container.innerText = `The winner is ${winner}`;
-  } else {
-    container.innerText = 'The draw'
-  }
+socket.on('GET_RESULTS', (results) => {
+  const rating = createRating(results);
+  createModal(rating)
 })

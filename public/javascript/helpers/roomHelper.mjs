@@ -78,3 +78,14 @@ export const displayUsers = (users, activePlayer) => {
     });
   })
 }
+
+export const createRating = (rating) => {
+  const ratingElement = createElement({tagName: 'ul', className: 'rating'});
+  rating.map(({username, timing, progress}) => {
+    const ratingItem = createElement({tagName: 'li', className: 'rating-item', parentNode: ratingElement});
+    createElement({tagName: 'span', text: username, parentNode: ratingItem});
+    progress && createElement({tagName: 'span', text: `${progress}%`, parentNode: ratingItem});
+    timing && createElement({tagName: 'span', text: `${timing/1000} sec`, parentNode: ratingItem});
+  })
+  return ratingElement;
+}

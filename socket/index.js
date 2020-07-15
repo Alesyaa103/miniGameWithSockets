@@ -5,17 +5,19 @@ const {
   SECONDS_FOR_GAME
 } = config;
 const rooms = {};
-const users = [];
+const users = new Set();
 
 const generateId = () => '_' + Math.random().toString(36).substr(2, 9);
 
 const joinRoom = (socket, room) => {
   socket.ready = false;
+  socket.progress = null;
+  socket.timing = null;
   room.sockets.push(socket);
   socket.join(room.id, () => {
     socket.roomId = room.id;
   });
-  socket.emit('JOINED_ROOM', { name: room.name })
+  socket.emit('JOINED_ROOM', room.name)
 };
 
 const redirectUser = socket => {
@@ -46,11 +48,11 @@ const leaveRooms = socket => {
   const roomsToDelete = [];
   for (const id in rooms) {
     const room = rooms[id];
-    const countUsers = room.sockets.length;
     if (room.sockets.includes(socket)) {
       socket.leave(id);
       room.sockets = room.sockets.filter((item) => item !== socket);
     }
+    const countUsers = room.sockets.length;
     if (countUsers === 0) {
       roomsToDelete.push(room);
       socket.broadcast.emit('UPDATE_ROOMS', {
@@ -70,7 +72,8 @@ const leaveRooms = socket => {
     }
   }
   socket.roomId = null;
-
+  socket.progress = null;
+  socket.timing = null;
   for (const room of roomsToDelete) {
     delete rooms[room.id];
   }
@@ -89,11 +92,11 @@ export default io => {
   io.on('connection', socket => {
     socket.id = generateId();
     const username = socket.handshake.query.username;
-    const isntUnique = users.find(user => user === username);
+    const isntUnique = users.has(username);
     if (isntUnique) {
       redirectUser(socket)
     } else {
-      users.push(username);
+      users.add(username);
       socket.username = username;
     };
 
@@ -114,16 +117,20 @@ export default io => {
       }
     });
 
-    socket.on('CORRECT_INPUT', (value) => {
+    socket.on('CORRECT_INPUT', value => {
       const room = rooms[socket.roomId];
+      socket.progress = value;
       for (const client of room.sockets) {
         client.emit('UPDATE_PROGRESS', {
           value,
           id: socket.id
         })
       }
-
     })
+
+    socket.on('WHOLE_TEXT_ENTERED', value => {
+      socket.timing = value;
+    });
 
     socket.on('GET_ROOMS', () => {
       const roomNames = [];
@@ -188,22 +195,18 @@ export default io => {
 
     socket.on('FINISH_GAME', () => {
       const room = rooms[socket.roomId];
-      for (const client of room.sockets) {
-        client.emit('GET_RESULTS', null);
-      }
-    });
-
-    socket.on('GET_WINNER', () => {
-      const room = rooms[socket.roomId];
-      const currentUser = socket.username;
-      for (const client of room.sockets) {
-        client.emit('GET_RESULTS', currentUser);
-      }
+      const finishedUsres = room.sockets.filter(client => client.timing)
+        .sort((a, b) => a.timing > b.timing ? 1 : -1)
+        .map(({username, timing, progress}) => ({username, timing, progress}));
+      const unfinishedUsers = room.sockets.filter(client => !client.timing)
+        .sort((a, b) => a.progress > b.progress ? -1 : 1)
+        .map(({username, timing, progress}) => ({username, timing, progress}));
+      const results = [...finishedUsres, ...unfinishedUsers]
+      socket.emit('GET_RESULTS', results);
     });
 
     socket.on('disconnect', () => {
-      const index = users.findIndex(user => user === socket.username);
-      index > -1 && users.splice(index, 1)
+      users.delete(socket.username)
       leaveRooms(socket);
     });
 
