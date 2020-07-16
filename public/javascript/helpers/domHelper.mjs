@@ -64,7 +64,6 @@ export const createModal = (bodyElement) => {
   
   const close = () => {
     const modal = document.querySelector('.modal-layer');
-    console.log(modal)
     modal?.remove();    
   };
 

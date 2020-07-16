@@ -1,5 +1,6 @@
 import { createRoom, displayUsers, createRating } from './helpers/roomHelper.mjs';
 import { createElement, createRoomElement, switchVisibility, createModal } from './helpers/domHelper.mjs';
+import { createBotMessage } from './helpers/botHelper.mjs';
 
 const username = sessionStorage.getItem('username');
 const socket = io('', { query: { username } });
@@ -11,6 +12,7 @@ const createBtn = document.getElementById('button-create');
 const roomsPage = document.getElementById('rooms-page');
 const gamePage = document.getElementById('game-page');
 const gameSection = document.getElementById('game-section');
+
 createBtn.addEventListener('click', createRoom.bind(null, socket));
 
 readyBtn.addEventListener('click', () => {
@@ -37,12 +39,14 @@ const clearGameField = () => {
   switchVisibility({elementToShow: readyBtn, elementToHide: notReadyBtn});
 }
 
-const finishGame = (startId) => {
+const finishGame = (startId, notigicationTimerId, jokeTimerId) => {
   clearTimeout(startId);
+  clearInterval(notigicationTimerId);
+  clearInterval(jokeTimerId);
   socket.emit('FINISH_GAME');
 };
 
-const gameProcess = (textContainer, enteredContainer, currentTime, e) => {
+const gameProcess = (textContainer, enteredContainer, currentTime, socket, e) => {
   const textToEnter = textContainer.textContent.split('');
   const enteredText = enteredContainer.textContent.split('');
   if (e.key === textToEnter[0]) {
@@ -58,6 +62,8 @@ const gameProcess = (textContainer, enteredContainer, currentTime, e) => {
       const finishTime = Date.now() - currentTime;
       socket.emit('WHOLE_TEXT_ENTERED', finishTime);
     }
+    textToEnterLength === 30 && socket.emit('GET_WARNING_MESSAGE');
+    textToEnterLength === 0 && socket.emit('GET_FINISH_MESSAGE');
   };
 }
 
@@ -69,7 +75,7 @@ socket.on('ROOM_GOT', (rooms) => {
   rooms.forEach(room => createRoomElement(room, roomsElement, socket));
 });
 
-socket.on('JOINED_ROOM', (name) => {
+socket.on('JOINED_ROOM', name => {
   const gameAside = document.getElementById('game-aside');
   switchVisibility({elementToShow: gamePage, elementToHide: roomsPage});
   const nameElement = createElement({
@@ -100,6 +106,7 @@ socket.on('NEW_CONNECT', ({users, activePlayer}) => {
 socket.on('USER_LEFT', () => {
   const userContainer = document.getElementById('user-container');
   userContainer.parentNode.removeChild(userContainer);
+  document.querySelectorAll('.bot-message').forEach(item =>item.remove());
 });
 
 socket.emit('GET_ROOMS');
@@ -139,16 +146,20 @@ socket.on('START_GAME', ({ start, finish, textId }) => {
     className: 'timer',
     parentNode: container
   });
-
+  const textContainer = createElement({
+    tagName: 'div',
+    className: 'text-container',
+    parentNode: container
+  })
   const enteredContainer = createElement({
     tagName: 'pre',
     className: 'entered-container',
-    parentNode: container
+    parentNode: textContainer
   });
-  const textContainer = createElement({
+  const notEnteredContainer = createElement({
     tagName: 'pre',
-    className: 'display-none text-container',
-    parentNode: container
+    className: 'display-none not-entered-container',
+    parentNode: textContainer
   });
 
   fetch(`http://localhost:3002/game/texts/${textId}`, {
@@ -157,7 +168,7 @@ socket.on('START_GAME', ({ start, finish, textId }) => {
       }
     })
     .then(res => res.json())
-    .then(({ text }) => textContainer.innerText = text)
+    .then(({ text }) => notEnteredContainer.innerText = text)
     .catch(error => window.location.reload());
 
   let i = start;
@@ -165,15 +176,24 @@ socket.on('START_GAME', ({ start, finish, textId }) => {
 
   const startGame = () => {
     clearInterval(timerId);
+    socket.emit('GET_START_MESSAGE')
     const currentTime = Date.now();
-    switchVisibility({elementToShow: textContainer, elementToHide: timer});
-    document.addEventListener('keyup', gameProcess.bind(null, textContainer, enteredContainer, currentTime));
-    setTimeout(finishGame.bind(null, startId), finish * 1000);
+    switchVisibility({elementToShow: notEnteredContainer, elementToHide: timer});
+    document.addEventListener('keyup', gameProcess.bind(null, notEnteredContainer, enteredContainer, currentTime, socket));
+    setTimeout(finishGame.bind(null, startId, notigicationTimerId, jokeTimerId), finish * 1000);
   }
 
   const timerId = setInterval(() => {
     timer.innerText = `${decrease()}`;
   }, 1000);
+
+  const notigicationTimerId = setInterval(() => {
+    socket.emit('GET_NOTIFICATION_MESSAGE');
+  }, 30000);
+
+  const jokeTimerId = setInterval(() => {
+    socket.emit('GET_JOKE_MESSAGE');
+  }, 7000);
 
   const startId = setTimeout(startGame, start * 1000);
 })
@@ -183,7 +203,11 @@ socket.on('UPDATE_PROGRESS', ({ value, id }) => {
   progressBar.value = value;
 });
 
-socket.on('GET_RESULTS', (results) => {
+socket.on('GET_RESULTS', results => {
   const rating = createRating(results);
-  createModal(rating)
+  // createModal(rating)
+});
+
+socket.on('BOT_MESSAGE', message => {
+  createBotMessage(message);
 })

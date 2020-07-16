@@ -4,6 +4,9 @@ const {
   SECONDS_TIMER_BEFORE_START_GAME,
   SECONDS_FOR_GAME
 } = config;
+import { transport } from '../data';
+import bot from './bot/botFacade';
+
 const rooms = {};
 const users = new Set();
 
@@ -14,10 +17,9 @@ const joinRoom = (socket, room) => {
   socket.progress = null;
   socket.timing = null;
   room.sockets.push(socket);
-  socket.join(room.id, () => {
-    socket.roomId = room.id;
-  });
-  socket.emit('JOINED_ROOM', room.name)
+  socket.join(room.id, () => { socket.roomId = room.id; });
+  socket.emit('JOINED_ROOM', room.name);
+  socket.emit('BOT_MESSAGE', bot.initMessage())
 };
 
 const redirectUser = socket => {
@@ -33,11 +35,12 @@ const checkStartGame = (room, socket) => {
       available: false
     });
     const num = Math.floor(Math.random() * 7);
+    room.sockets.forEach((player, index) => player.transport = transport.get(index));
     for (const client of room.sockets) {
       client.emit('START_GAME', {
         start: SECONDS_TIMER_BEFORE_START_GAME,
         finish: SECONDS_FOR_GAME,
-        textId: num
+        textId: num,
       });
     }
   }
@@ -62,7 +65,6 @@ const leaveRooms = socket => {
     } else {
       checkStartGame(room, socket);
       updateCurrentUsers(room);
-
       socket.broadcast.emit('UPDATE_ROOMS', {
         id: room.id,
         count: countUsers,
@@ -70,7 +72,8 @@ const leaveRooms = socket => {
         available: room.available
       });
     }
-  }
+  };
+
   socket.roomId = null;
   socket.progress = null;
   socket.timing = null;
@@ -78,13 +81,16 @@ const leaveRooms = socket => {
     delete rooms[room.id];
   }
 
-  return roomsToDelete.length
+  return roomsToDelete.length;
 };
 
 const updateCurrentUsers = room => {
   const currentUsers = room.sockets.map(({ ready, id, username }) => ({ ready, id, username }));
   for (const client of room.sockets) {
-    client.emit('NEW_CONNECT', {users: currentUsers, activePlayer: client.username});
+    client.emit('NEW_CONNECT', {
+      users: currentUsers,
+      activePlayer: client.username
+    });
   };
 };
 
@@ -128,33 +134,25 @@ export default io => {
       }
     })
 
-    socket.on('WHOLE_TEXT_ENTERED', value => {
-      socket.timing = value;
-    });
+    socket.on('WHOLE_TEXT_ENTERED', value => { socket.timing = value; });
 
     socket.on('GET_ROOMS', () => {
       const roomNames = [];
       for (const id in rooms) {
-        const {
-          name,
-          available
-        } = rooms[id];
+        const { name, available } = rooms[id];
         const counterUsers = rooms[id].sockets.length;
-        const room = {
-          name,
-          id,
-          count: counterUsers,
-          available
-        };
+        const room = { name, id, count: counterUsers, available };
         roomNames.push(room);
       }
       socket.emit('ROOM_GOT', roomNames)
     });
 
-    socket.on('CREATE_ROOM', (roomName) => {
+    socket.on('CREATE_ROOM', roomName => {
       let isUnigue = true;
       for (const key in rooms) {
-        const { name } = rooms[key];
+        const {
+          name
+        } = rooms[key];
         roomName === name && (isUnigue = false);
       }
       if (isUnigue) {
@@ -176,7 +174,7 @@ export default io => {
       } else socket.emit('ERROR_ROOM', 'Such room already exist')
     });
 
-    socket.on('JOIN_ROOM', (roomId) => {
+    socket.on('JOIN_ROOM', roomId => {
       const room = rooms[roomId];
       joinRoom(socket, room);
       updateCurrentUsers(room);
@@ -185,9 +183,37 @@ export default io => {
         id: roomId,
         count: room.sockets.length,
         name: room.name,
-        available: room.available
+        available: room.available,
       })
     });
+
+    socket.on('GET_NOTIFICATION_MESSAGE', () => {
+      const room = rooms[socket.roomId];
+      socket.emit('BOT_MESSAGE', bot.notificationMessage(room.sockets));
+    });
+
+    socket.on('GET_START_MESSAGE', () => {
+      const room = rooms[socket.roomId];
+      socket.emit('BOT_MESSAGE', bot.introduceMessage(room.sockets));
+    });
+
+    socket.on('GET_WARNING_MESSAGE', () => {
+      const room = rooms[socket.roomId];
+      for (const client of room.sockets) {
+        client.emit('BOT_MESSAGE', bot.warningMessage(socket));
+      }
+    });
+
+    socket.on('GET_FINISH_MESSAGE', () => {
+      const room = rooms[socket.roomId];
+      for (const client of room.sockets) {
+        client.emit('BOT_MESSAGE', bot.finishMessage(socket));
+      }
+    });
+
+    socket.on('GET_JOKE_MESSAGE', () => {
+      socket.emit('BOT_MESSAGE', bot.randomMessage());
+    })
 
     socket.on('LEAVE_ROOM', () => {
       leaveRooms(socket);
@@ -197,11 +223,13 @@ export default io => {
       const room = rooms[socket.roomId];
       const finishedUsres = room.sockets.filter(client => client.timing)
         .sort((a, b) => a.timing > b.timing ? 1 : -1)
-        .map(({username, timing, progress}) => ({username, timing, progress}));
+        .map(({ username, timing, progress, transport }) => ({ username, timing, progress, transport }));
       const unfinishedUsers = room.sockets.filter(client => !client.timing)
         .sort((a, b) => a.progress > b.progress ? -1 : 1)
-        .map(({username, timing, progress}) => ({username, timing, progress}));
-      const results = [...finishedUsres, ...unfinishedUsers]
+        .map(({ username, timing, progress, transport }) => ({ username, transport, timing, progress }));
+      const results = [...finishedUsres, ...unfinishedUsers];
+      const usersToBot = results.slice(0, 3);
+      socket.emit('BOT_MESSAGE', bot.resultMessage(usersToBot));
       socket.emit('GET_RESULTS', results);
     });
 
@@ -209,6 +237,5 @@ export default io => {
       users.delete(socket.username)
       leaveRooms(socket);
     });
-
   });
 };

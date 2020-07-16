@@ -1,7 +1,7 @@
 import { createElement } from './domHelper.mjs';
 
 export const createRoom = (socket, e) => {
-  const roomName = prompt('Enter the name of your room', 'Default name')
+  const roomName = prompt('Enter the name of your room', 'Default name');
   socket.emit('CREATE_ROOM', roomName);
 }
 
